@@ -1,4 +1,4 @@
-from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
 
@@ -13,6 +13,11 @@ import pandas as pd
 from tqdm import tqdm
 from sklearn.svm import SVC
 from sklearn.linear_model import LogisticRegression
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.neural_network import MLPClassifier
+import gensim.downloader as api
+import numpy as np
+
 
 class SVMModel:
     def __init__(self, kernel='linear', C=1.0):
@@ -35,6 +40,27 @@ class LogisticRegressionModel:
     def predict(self, X_test):
         return self.model.predict(X_test)
 
+
+class NaiveBayesModel:
+    def __init__(self):
+        self.model = MultinomialNB()
+
+    def fit(self, X_train, y_train):
+        self.model.fit(X_train, y_train)
+
+    def predict(self, X_test):
+        return self.model.predict(X_test)
+
+
+class MLPModel:
+    def __init__(self):
+        self.model = MLPClassifier()
+
+    def fit(self, X_train, y_train):
+        self.model.fit(X_train, y_train)
+
+    def predict(self, X_test):
+        return self.model.predict(X_test)
 
 
 class TextDataset(Dataset):
@@ -92,6 +118,16 @@ def train_model(model, train_loader, optimizer, criterion, epochs, device):
         print(f"Epoch {epoch+1}, Loss: {avg_loss:.4f}")
 
 
+def get_word2vec_embeddings(texts, word2vec_model, embedding_dim=300):
+    embeddings = []
+    for text in texts:
+        word_vectors = [word2vec_model[word] for word in text if word in word2vec_model]
+        if word_vectors:
+            embeddings.append(np.mean(word_vectors, axis=0))
+        else:
+            embeddings.append(np.zeros(embedding_dim))
+    return np.array(embeddings)
+
 def evaluate_model(model, test_loader, device):
     model.eval()
     all_preds, all_labels = [], []
@@ -118,7 +154,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--model', type=str, default='bert', help='Model to run')
+    parser.add_argument('--model', type=str, default='naive_bayes', help='Model to run')
     parser.add_argument('--epochs', type=int, default=1, help='Number of epochs')
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size')
     parser.add_argument('--lr', type=float, default=2e-5, help='Learning rate')
@@ -126,10 +162,11 @@ def main():
     parser.add_argument('--save_path', type=str, default='/workspace/zhixiang-shannon/ECE449_Project/bert_model/', help='Path to save model')
     parser.add_argument('--pretrained_model', type=str, default='/workspace/zhixiang-shannon/bert-base-uncased', help='Path to pretrained model')
 
-    args = parser.parse_args()
+
+args = parser.parse_args()
 
     model = args.model
-    if args.model not in ['svm', 'logistic', 'bert']:
+    if args.model not in ['svm', 'logistic', 'bert', 'naive_bayes', 'mlp']:
         print("Invalid model")
         return
     
@@ -172,6 +209,26 @@ def main():
         logistic_model.fit(X_train_tfidf, y_train)
         logistic_preds = logistic_model.predict(X_test_tfidf)
         print("Logistic Regression Results:", classification_report(y_test, logistic_preds))
+
+    # Naive Bayes
+    elif model == 'naive_bayes':
+        vectorizer = TfidfVectorizer()
+        X_train_tfidf = vectorizer.fit_transform(X_train)
+        X_test_tfidf = vectorizer.transform(X_test)
+        nb_model = NaiveBayesModel()
+        nb_model.fit(X_train_tfidf, y_train)
+        nb_preds = nb_model.predict(X_test_tfidf)
+        print("Naive Bayes Results:", classification_report(y_test, nb_preds))
+
+    # MLP
+    elif model == 'mlp':
+        word2vec_model = api.load("word2vec-google-news-300")
+        X_train_dense = get_word2vec_embeddings(X_train, word2vec_model)
+        X_test_dense = get_word2vec_embeddings(X_test, word2vec_model)
+        mlp_model = MLPModel()
+        mlp_model.fit(X_train_dense, y_train)
+        mlp_preds = mlp_model.predict(X_test_dense)
+        print("MLP Results:", classification_report(y_test, mlp_preds))
 
 
     else:
