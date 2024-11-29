@@ -1,6 +1,7 @@
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
+from xgboost import XGBClassifier
 
 import torch
 import torch.optim as optim
@@ -55,6 +56,16 @@ class NaiveBayesModel:
 class MLPModel:
     def __init__(self):
         self.model = MLPClassifier()
+
+    def fit(self, X_train, y_train):
+        self.model.fit(X_train, y_train)
+
+    def predict(self, X_test):
+        return self.model.predict(X_test)
+    
+class XGBoostModel:
+    def __init__(self):
+        self.model = XGBClassifier(use_label_encoder=False, eval_metric='logloss')
 
     def fit(self, X_train, y_train):
         self.model.fit(X_train, y_train)
@@ -158,15 +169,15 @@ def main():
     parser.add_argument('--epochs', type=int, default=1, help='Number of epochs')
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size')
     parser.add_argument('--lr', type=float, default=2e-5, help='Learning rate')
-    parser.add_argument('--data_path', type=str, default='/workspace/zhixiang-shannon/ECE449_Project/email_text.csv', help='Path to data')
-    parser.add_argument('--save_path', type=str, default='/workspace/zhixiang-shannon/ECE449_Project/bert_model/', help='Path to save model')
-    parser.add_argument('--pretrained_model', type=str, default='/workspace/zhixiang-shannon/bert-base-uncased', help='Path to pretrained model')
+    parser.add_argument('--data_path', type=str, default='C:/Users/16366/ECE449_Project/email_text.csv', help='Path to data')
+    parser.add_argument('--save_path', type=str, default='C:/Users/16366/ECE449_Project/bert_model/', help='Path to save model')
+    parser.add_argument('--pretrained_model', type=str, default='/bert-base-uncased', help='Path to pretrained model')
 
 
-args = parser.parse_args()
+    args = parser.parse_args()
 
     model = args.model
-    if args.model not in ['svm', 'logistic', 'bert', 'naive_bayes', 'mlp']:
+    if args.model not in ['svm', 'logistic', 'bert', 'naive_bayes', 'mlp',"xgboost"]:
         print("Invalid model")
         return
     
@@ -229,6 +240,17 @@ args = parser.parse_args()
         mlp_model.fit(X_train_dense, y_train)
         mlp_preds = mlp_model.predict(X_test_dense)
         print("MLP Results:", classification_report(y_test, mlp_preds))
+        
+    elif model == 'xgboost':
+        vectorizer = TfidfVectorizer()
+        X_train_tfidf = vectorizer.fit_transform(X_train)
+        X_test_tfidf = vectorizer.transform(X_test)
+        xgb_model = XGBoostModel()
+        xgb_model.fit(X_train_tfidf, y_train)
+        xgb_preds = xgb_model.predict(X_test_tfidf)
+        print("XGBoost Results:", classification_report(y_test, xgb_preds))
+
+
 
 
     else:
